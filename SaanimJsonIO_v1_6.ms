@@ -23,6 +23,7 @@ rollout tagRoll "saanim Json I/O"
 local tfmData = #()
 	
 Label lab2 "Please pick an saanim .json for your model"
+button mergeSA1Meshes "Merge SA1 Meshes" across:1 width:120 align:#center
 button animImportSA1 "Load SA1 Anim" across:1 width:120 align:#center
 button animImportSA2 "Load SA2 Anim" across:1 width:120 align:#center
 button animExportSA1 "Export SA1 Anim" across:1 width:120 align:#center
@@ -39,83 +40,81 @@ checkBox tgeMode "Model is from TGE's converter" checked:false align:#left
 fn mergeSplitMeshes =
 (
 	objList = objects as array
-	objList2 = #()
 	for obj in objList do
 	(
 		if obj != undefined then
 		(
 			if (matchPattern obj.name pattern:"mesh*") then
 			(
+				meshNorms = #()
+				if fixNormals.checked == true then
+				(
+					--Set Normals
+					newMesh = obj
+					max modify mode
+					select newMesh
+					addmodifier newMesh (Edit_Normals ()) ui:off
+					nMNorms = newMesh.modifiers[#Edit_Normals]	
+					--Finish setting normals
+					newMesh.Edit_Normals.MakeExplicit selection:#{1..newMesh.verts.count}
+					EN_convertVS = newMesh.Edit_Normals.ConvertVertexSelection
+					EN_setNormal = newMesh.Edit_Normals.SetNormal
+					EN_getNormal = newMesh.Edit_Normals.GetNormal
+					EN_setSelection = newMesh.Edit_Normals.SetSelection
+					EN_setExplicit = newMesh.Edit_Normals.SetNormalExplicit
+					normID = #{}
+						
+					for v = 1 to obj.verts.count do
+					(
+						free normID
+						EN_convertVS #{v} &normID
+						normal = [0, 0 ,0]
+						for id in normID do 
+						(
+							EN_setSelection #{id}
+							normal += EN_getNormal id
+						)
+						meshNorms[obj.parent.verts.count + v] = (normalize normal)
+					)
+				)
 				tempObj = obj.parent
 				meshop.attach tempObj obj
-				appendIfUnique objList2 tempObj 
-			)
-		)
-	)
-	for obj in objList2 do
-	(
-		normCheck = #{1..obj.verts.count}
-		normCheck = -normCheck
-		normList = #()
-		for v = 1 to obj.verts.count do
-		(
-			if normcheck[v] == false then
-			(
-				normal = getNormal obj.Mesh v
-				vertList = #()
-				append vertList v 
-				for u = (v + 1) to obj.verts.count do
+				
+				if fixNormals.checked == true then
 				(
-					if u != v then
+					--Set Normals
+					newMesh = tempObj
+					max modify mode
+					select newMesh
+					addmodifier newMesh (Edit_Normals ()) ui:off
+					nMNorms = newMesh.modifiers[#Edit_Normals]	
+					--Finish setting normals
+					newMesh.Edit_Normals.MakeExplicit selection:#{1..newMesh.verts.count}
+					EN_convertVS = newMesh.Edit_Normals.ConvertVertexSelection
+					EN_setNormal = newMesh.Edit_Normals.SetNormal
+					EN_setSelection = newMesh.Edit_Normals.SetSelection
+					EN_setExplicit = newMesh.Edit_Normals.SetNormalExplicit
+					normID = #{}
+						
+					for norm = 1 to meshNorms.count do
 					(
-						if (getVert obj.Mesh v) == (getVert obj.Mesh u) then
+						if meshNorms[norm] != undefined then
 						(
-							normal += getNormal obj.Mesh u
-							append vertList u
+							free normID
+							EN_convertVS #{norm} &normID
+							for id in normID do 
+							(
+								EN_setSelection #{id}
+								EN_setExplicit id explicit:true
+								EN_setNormal id meshNorms[norm]
+							)
 						)
 					)
-				)
-				if vertList.count > 1 then
-				(
-					normCheck += (vertList as bitArray)
-					append normList (vertNorm vertNormal:(normalize normal) vertArray:vertList)
+					update newMesh
+					maxOps.CollapseNodeTo newMesh 1 true -- Collapse the Edit Normals modifier
+					update newMesh
 				)
 			)
-		)
-		
-		if fixNormals.checked == true then
-		(
-			--Set Normals
-			newMesh = obj
-			max modify mode
-			select newMesh
-			addmodifier newMesh (Edit_Normals ()) ui:off
-			nMNorms = newMesh.modifiers[#Edit_Normals]	
-			--Finish setting normals
-			newMesh.Edit_Normals.MakeExplicit selection:#{1..newMesh.verts.count}
-			EN_convertVS = newMesh.Edit_Normals.ConvertVertexSelection
-			EN_setNormal = newMesh.Edit_Normals.SetNormal
-			EN_setSelection = newMesh.Edit_Normals.SetSelection
-			EN_setExplicit = newMesh.Edit_Normals.SetNormalExplicit
-			normID = #{}
-				
-			for norm in normList do
-			(
-				for vert in norm.vertArray do
-				(
-					free normID
-					EN_convertVS #{vert} &normID
-					for id in normID do 
-					(
-						EN_setSelection #{id}
-						EN_setExplicit id explicit:true
-						EN_setNormal id norm.vertNormal
-					)
-				)
-			)
-			update newMesh
-			maxOps.CollapseNodeTo newMesh 1 true -- Collapse the Edit Normals modifier
-			update newMesh
 		)
 	)
 )
@@ -847,9 +846,13 @@ on animExportSA2 pressed do
     )
 )
 
+on mergeSA1Meshes pressed do
+(
+	mergeSplitMeshes()
+)
 
 )
-createDialog tagRoll 320 240
+createDialog tagRoll 320 270
 
 
 
